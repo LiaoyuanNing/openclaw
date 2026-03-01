@@ -129,27 +129,54 @@ export function resolveFeishuCredentials(
   verificationToken?: string;
   domain: FeishuDomain;
 } | null {
-  const appId = cfg?.appId?.trim();
-  const appSecret = options?.allowUnresolvedSecretRef
-    ? normalizeSecretInputString(cfg?.appSecret)
-    : normalizeResolvedSecretInputString({
-        value: cfg?.appSecret,
-        path: "channels.feishu.appSecret",
-      });
+  const normalizeString = (value: unknown): string | undefined => {
+    if (typeof value !== "string") {
+      return undefined;
+    }
+    const trimmed = value.trim();
+    return trimmed ? trimmed : undefined;
+  };
+
+  const resolveSecretLike = (value: unknown, path: string): string | undefined => {
+    const asString = normalizeString(value);
+    if (asString) {
+      return asString;
+    }
+
+    // SecretRef support (env only in this sync path)
+    if (typeof value === "object" && value !== null) {
+      const rec = value as Record<string, unknown>;
+      const source = normalizeString(rec.source)?.toLowerCase();
+      const id = normalizeString(rec.id);
+      if (source === "env" && id) {
+        return normalizeString(process.env[id]);
+      }
+    }
+
+    try {
+      return options?.allowUnresolvedSecretRef
+        ? normalizeSecretInputString(value)
+        : normalizeResolvedSecretInputString({ value, path });
+    } catch {
+      // Keep account resolution fail-safe: unresolved/unsupported refs are treated as missing.
+      return undefined;
+    }
+  };
+
+  const appId = resolveSecretLike(cfg?.appId, "channels.feishu.appId");
+  const appSecret = resolveSecretLike(cfg?.appSecret, "channels.feishu.appSecret");
+
   if (!appId || !appSecret) {
     return null;
   }
   return {
     appId,
     appSecret,
-    encryptKey: cfg?.encryptKey?.trim() || undefined,
-    verificationToken:
-      (options?.allowUnresolvedSecretRef
-        ? normalizeSecretInputString(cfg?.verificationToken)
-        : normalizeResolvedSecretInputString({
-            value: cfg?.verificationToken,
-            path: "channels.feishu.verificationToken",
-          })) || undefined,
+    encryptKey: normalizeString(cfg?.encryptKey),
+    verificationToken: resolveSecretLike(
+      cfg?.verificationToken,
+      "channels.feishu.verificationToken",
+    ),
     domain: cfg?.domain ?? "feishu",
   };
 }
@@ -192,7 +219,10 @@ export function resolveFeishuAccount(params: {
     selectionSource,
     enabled,
     configured: Boolean(creds),
-    name: (merged as FeishuAccountConfig).name?.trim() || undefined,
+    name:
+      typeof (merged as FeishuAccountConfig).name === "string"
+        ? (merged as FeishuAccountConfig).name.trim() || undefined
+        : undefined,
     appId: creds?.appId,
     appSecret: creds?.appSecret,
     encryptKey: creds?.encryptKey,

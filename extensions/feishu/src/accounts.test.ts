@@ -3,6 +3,7 @@ import {
   resolveDefaultFeishuAccountId,
   resolveDefaultFeishuAccountSelection,
   resolveFeishuAccount,
+  resolveFeishuCredentials,
 } from "./accounts.js";
 
 describe("resolveDefaultFeishuAccountId", () => {
@@ -98,6 +99,61 @@ describe("resolveDefaultFeishuAccountId", () => {
   });
 });
 
+describe("resolveFeishuCredentials", () => {
+  it("returns null (instead of throwing) for unsupported non-string secret values", () => {
+    const creds = resolveFeishuCredentials({
+      appId: "cli_123",
+      appSecret: { source: "file", provider: "default", id: "path/to/secret" } as never,
+    });
+
+    expect(creds).toBeNull();
+  });
+
+  it("resolves env SecretRef objects", () => {
+    const key = "FEISHU_APP_SECRET_TEST";
+    const prev = process.env[key];
+    process.env[key] = " secret_from_env ";
+
+    try {
+      const creds = resolveFeishuCredentials({
+        appId: "cli_123",
+        appSecret: { source: "env", provider: "default", id: key } as never,
+      });
+
+      expect(creds).toEqual({
+        appId: "cli_123",
+        appSecret: "secret_from_env",
+        encryptKey: undefined,
+        verificationToken: undefined,
+        domain: "feishu",
+      });
+    } finally {
+      if (prev === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = prev;
+      }
+    }
+  });
+
+  it("trims and returns credentials when values are valid strings", () => {
+    const creds = resolveFeishuCredentials({
+      appId: " cli_123 ",
+      appSecret: " secret_456 ",
+      encryptKey: " enc ",
+      verificationToken: " vt ",
+    });
+
+    expect(creds).toEqual({
+      appId: "cli_123",
+      appSecret: "secret_456",
+      encryptKey: "enc",
+      verificationToken: "vt",
+      domain: "feishu",
+    });
+  });
+});
+
 describe("resolveFeishuAccount", () => {
   it("uses top-level credentials with configured default account id even without account map entry", () => {
     const cfg = {
@@ -157,5 +213,26 @@ describe("resolveFeishuAccount", () => {
     expect(account.accountId).toBe("default");
     expect(account.selectionSource).toBe("explicit");
     expect(account.appId).toBe("cli_default");
+  });
+
+  it("does not throw when account name is non-string", () => {
+    expect(() =>
+      resolveFeishuAccount({
+        cfg: {
+          channels: {
+            feishu: {
+              accounts: {
+                main: {
+                  name: { bad: true },
+                  appId: "cli_123",
+                  appSecret: "secret_456",
+                } as never,
+              },
+            },
+          },
+        } as never,
+        accountId: "main",
+      }),
+    ).not.toThrow();
   });
 });
