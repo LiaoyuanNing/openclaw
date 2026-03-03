@@ -38,3 +38,25 @@ describe("feishuOnboardingAdapter.configure", () => {
     ).resolves.toBeTruthy();
   });
 });
+
+describe("feishuOnboardingAdapter.getStatus", () => {
+  it("does not fallback to top-level appId when account explicitly sets empty appId", async () => {
+    const status = await feishuOnboardingAdapter.getStatus({
+      cfg: {
+        channels: {
+          feishu: {
+            appId: "top_level_app",
+            accounts: {
+              main: {
+                appId: "",
+                appSecret: "secret_123",
+              },
+            },
+          },
+        },
+      } as never,
+    });
+
+    expect(status.configured).toBe(false);
+  });
+});

@@ -27,7 +27,6 @@ function normalizeString(value: unknown): string | undefined {
   return trimmed || undefined;
 }
 
-
 function setFeishuDmPolicy(cfg: ClawdbotConfig, dmPolicy: DmPolicy): ClawdbotConfig {
   const allowFrom =
     dmPolicy === "open"
@@ -179,14 +178,16 @@ export const feishuOnboardingAdapter: ChannelOnboardingAdapter = {
   getStatus: async ({ cfg }) => {
     const feishuCfg = cfg.channels?.feishu as FeishuConfig | undefined;
     const topLevelConfigured = Boolean(
-      feishuCfg?.appId?.trim() && hasConfiguredSecretInput(feishuCfg?.appSecret),
+      normalizeString(feishuCfg?.appId) && hasConfiguredSecretInput(feishuCfg?.appSecret),
     );
     const accountConfigured = Object.values(feishuCfg?.accounts ?? {}).some((account) => {
       if (!account || typeof account !== "object") {
         return false;
       }
-      const accountAppId =
-        normalizeString(account.appId) ?? normalizeString(feishuCfg?.appId);
+      const hasOwnAppId = Object.prototype.hasOwnProperty.call(account, "appId");
+      const accountAppId = hasOwnAppId
+        ? normalizeString(account.appId)
+        : normalizeString(feishuCfg?.appId);
       const accountSecretConfigured =
         hasConfiguredSecretInput(account.appSecret) ||
         hasConfiguredSecretInput(feishuCfg?.appSecret);
@@ -276,7 +277,8 @@ export const feishuOnboardingAdapter: ChannelOnboardingAdapter = {
       appSecretProbeValue = appSecretResult.resolvedValue;
       appId = await promptFeishuAppId({
         prompter,
-        initialValue: normalizeString(feishuCfg?.appId) ?? normalizeString(process.env.FEISHU_APP_ID),
+        initialValue:
+          normalizeString(feishuCfg?.appId) ?? normalizeString(process.env.FEISHU_APP_ID),
       });
     }
 
