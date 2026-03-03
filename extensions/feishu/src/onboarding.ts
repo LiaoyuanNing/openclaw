@@ -178,8 +178,22 @@ export const feishuOnboardingAdapter: ChannelOnboardingAdapter = {
   getStatus: async ({ cfg }) => {
     const feishuCfg = cfg.channels?.feishu as FeishuConfig | undefined;
 
-    const isAppIdConfigured = (value: unknown): boolean =>
-      Boolean(normalizeString(value) || hasConfiguredSecretInput(value));
+    const isAppIdConfigured = (value: unknown): boolean => {
+      const asString = normalizeString(value);
+      if (asString) {
+        return true;
+      }
+      if (!value || typeof value !== "object") {
+        return false;
+      }
+      const rec = value as Record<string, unknown>;
+      const source = normalizeString(rec.source)?.toLowerCase();
+      const id = normalizeString(rec.id);
+      if (source === "env" && id) {
+        return Boolean(normalizeString(process.env[id]));
+      }
+      return hasConfiguredSecretInput(value);
+    };
 
     const topLevelConfigured = Boolean(
       isAppIdConfigured(feishuCfg?.appId) && hasConfiguredSecretInput(feishuCfg?.appSecret),

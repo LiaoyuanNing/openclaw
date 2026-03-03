@@ -60,6 +60,41 @@ describe("feishuOnboardingAdapter.getStatus", () => {
     expect(status.configured).toBe(false);
   });
 
+  it("treats env SecretRef appId as not configured when env var is missing", async () => {
+    const appIdKey = "FEISHU_APP_ID_STATUS_MISSING_TEST";
+    const appSecretKey = "FEISHU_APP_SECRET_STATUS_MISSING_TEST";
+    const prevAppId = process.env[appIdKey];
+    const prevAppSecret = process.env[appSecretKey];
+    delete process.env[appIdKey];
+    process.env[appSecretKey] = "secret_env_456";
+
+    try {
+      const status = await feishuOnboardingAdapter.getStatus({
+        cfg: {
+          channels: {
+            feishu: {
+              appId: { source: "env", id: appIdKey, provider: "default" },
+              appSecret: { source: "env", id: appSecretKey, provider: "default" },
+            },
+          },
+        } as never,
+      });
+
+      expect(status.configured).toBe(false);
+    } finally {
+      if (prevAppId === undefined) {
+        delete process.env[appIdKey];
+      } else {
+        process.env[appIdKey] = prevAppId;
+      }
+      if (prevAppSecret === undefined) {
+        delete process.env[appSecretKey];
+      } else {
+        process.env[appSecretKey] = prevAppSecret;
+      }
+    }
+  });
+
   it("treats env SecretRef appId/appSecret as configured in status", async () => {
     const appIdKey = "FEISHU_APP_ID_STATUS_TEST";
     const appSecretKey = "FEISHU_APP_SECRET_STATUS_TEST";
