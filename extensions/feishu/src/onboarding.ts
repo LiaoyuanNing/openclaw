@@ -177,26 +177,28 @@ export const feishuOnboardingAdapter: ChannelOnboardingAdapter = {
   channel,
   getStatus: async ({ cfg }) => {
     const feishuCfg = cfg.channels?.feishu as FeishuConfig | undefined;
-    const topLevelConfigured = Boolean(
-      normalizeString(feishuCfg?.appId) && hasConfiguredSecretInput(feishuCfg?.appSecret),
-    );
-    const accountConfigured = Object.values(feishuCfg?.accounts ?? {}).some((account) => {
+
+    const topLevelResolved = resolveFeishuCredentials(feishuCfg, {
+      allowUnresolvedSecretRef: true,
+    });
+
+    const accountResolved = Object.values(feishuCfg?.accounts ?? {}).some((account) => {
       if (!account || typeof account !== "object") {
         return false;
       }
-      const hasOwnAppId = Object.prototype.hasOwnProperty.call(account, "appId");
-      const accountAppId = hasOwnAppId
-        ? normalizeString(account.appId)
-        : normalizeString(feishuCfg?.appId);
-      const accountSecretConfigured =
-        hasConfiguredSecretInput(account.appSecret) ||
-        hasConfiguredSecretInput(feishuCfg?.appSecret);
-      return Boolean(accountAppId && accountSecretConfigured);
+      const merged = {
+        ...(feishuCfg ?? {}),
+        ...(account as Record<string, unknown>),
+      } as FeishuConfig;
+      return Boolean(
+        resolveFeishuCredentials(merged, {
+          allowUnresolvedSecretRef: true,
+        }),
+      );
     });
-    const configured = topLevelConfigured || accountConfigured;
-    const resolvedCredentials = resolveFeishuCredentials(feishuCfg, {
-      allowUnresolvedSecretRef: true,
-    });
+
+    const configured = Boolean(topLevelResolved) || accountResolved;
+    const resolvedCredentials = topLevelResolved;
 
     // Try to probe if configured
     let probeResult = null;
