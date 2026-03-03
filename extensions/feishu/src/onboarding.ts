@@ -19,6 +19,15 @@ import type { FeishuConfig } from "./types.js";
 
 const channel = "feishu" as const;
 
+function normalizeString(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed || undefined;
+}
+
+
 function setFeishuDmPolicy(cfg: ClawdbotConfig, dmPolicy: DmPolicy): ClawdbotConfig {
   const allowFrom =
     dmPolicy === "open"
@@ -177,7 +186,7 @@ export const feishuOnboardingAdapter: ChannelOnboardingAdapter = {
         return false;
       }
       const accountAppId =
-        typeof account.appId === "string" ? account.appId.trim() : feishuCfg?.appId?.trim();
+        normalizeString(account.appId) ?? normalizeString(feishuCfg?.appId);
       const accountSecretConfigured =
         hasConfiguredSecretInput(account.appSecret) ||
         hasConfiguredSecretInput(feishuCfg?.appSecret);
@@ -224,7 +233,9 @@ export const feishuOnboardingAdapter: ChannelOnboardingAdapter = {
       allowUnresolvedSecretRef: true,
     });
     const hasConfigSecret = hasConfiguredSecretInput(feishuCfg?.appSecret);
-    const hasConfigCreds = Boolean(feishuCfg?.appId?.trim() && hasConfigSecret);
+    const hasConfigCreds = Boolean(
+      typeof feishuCfg?.appId === "string" && feishuCfg.appId.trim() && hasConfigSecret,
+    );
     const canUseEnv = Boolean(
       !hasConfigCreds && process.env.FEISHU_APP_ID?.trim() && process.env.FEISHU_APP_SECRET?.trim(),
     );
@@ -265,7 +276,7 @@ export const feishuOnboardingAdapter: ChannelOnboardingAdapter = {
       appSecretProbeValue = appSecretResult.resolvedValue;
       appId = await promptFeishuAppId({
         prompter,
-        initialValue: feishuCfg?.appId?.trim() || process.env.FEISHU_APP_ID?.trim(),
+        initialValue: normalizeString(feishuCfg?.appId) ?? normalizeString(process.env.FEISHU_APP_ID),
       });
     }
 
