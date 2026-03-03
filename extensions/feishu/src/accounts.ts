@@ -153,14 +153,10 @@ export function resolveFeishuCredentials(
       }
     }
 
-    try {
-      return options?.allowUnresolvedSecretRef
-        ? normalizeSecretInputString(value)
-        : normalizeResolvedSecretInputString({ value, path });
-    } catch {
-      // Keep account resolution fail-safe: unresolved/unsupported refs are treated as missing.
-      return undefined;
+    if (options?.allowUnresolvedSecretRef) {
+      return normalizeSecretInputString(value);
     }
+    return normalizeResolvedSecretInputString({ value, path });
   };
 
   const appId = resolveSecretLike(cfg?.appId, "channels.feishu.appId");

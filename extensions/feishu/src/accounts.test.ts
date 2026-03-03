@@ -100,11 +100,23 @@ describe("resolveDefaultFeishuAccountId", () => {
 });
 
 describe("resolveFeishuCredentials", () => {
-  it("returns null (instead of throwing) for unsupported non-string secret values", () => {
-    const creds = resolveFeishuCredentials({
-      appId: "cli_123",
-      appSecret: { source: "file", provider: "default", id: "path/to/secret" } as never,
-    });
+  it("throws unresolved SecretRef errors by default for unsupported secret sources", () => {
+    expect(() =>
+      resolveFeishuCredentials({
+        appId: "cli_123",
+        appSecret: { source: "file", provider: "default", id: "path/to/secret" } as never,
+      }),
+    ).toThrow(/unresolved SecretRef/i);
+  });
+
+  it("returns null (without throwing) when unresolved SecretRef is allowed", () => {
+    const creds = resolveFeishuCredentials(
+      {
+        appId: "cli_123",
+        appSecret: { source: "file", provider: "default", id: "path/to/secret" } as never,
+      },
+      { allowUnresolvedSecretRef: true },
+    );
 
     expect(creds).toBeNull();
   });
@@ -213,6 +225,26 @@ describe("resolveFeishuAccount", () => {
     expect(account.accountId).toBe("default");
     expect(account.selectionSource).toBe("explicit");
     expect(account.appId).toBe("cli_default");
+  });
+
+  it("surfaces unresolved SecretRef errors in account resolution", () => {
+    expect(() =>
+      resolveFeishuAccount({
+        cfg: {
+          channels: {
+            feishu: {
+              accounts: {
+                main: {
+                  appId: "cli_123",
+                  appSecret: { source: "file", provider: "default", id: "path/to/secret" },
+                } as never,
+              },
+            },
+          },
+        } as never,
+        accountId: "main",
+      }),
+    ).toThrow(/unresolved SecretRef/i);
   });
 
   it("does not throw when account name is non-string", () => {
