@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { extractInboundSenderLabel, stripInboundMetadata } from "./strip-inbound-meta.js";
+import {
+  extractInboundSenderLabel,
+  stripInboundMetadata,
+  stripLeadingInboundMetadata,
+} from "./strip-inbound-meta.js";
 
 const CONV_BLOCK = `Conversation info (untrusted metadata):
 \`\`\`json
@@ -117,6 +121,101 @@ Real user content`;
 name: test
 Hello from user`;
     expect(stripInboundMetadata(input)).toBe(input);
+  });
+
+  it("strips leading <session-recap> block", () => {
+    const input = `<session-recap>
+<summary>Found 10 recent items across 3 categories</summary>
+<ledger-items count="2">
+  <item path="ledger/2026-03-09.md">
+    <title>ledger/2026-03-09.md</title>
+  </item>
+</ledger-items>
+</session-recap>
+
+What is the weather today?`;
+    expect(stripInboundMetadata(input)).toBe("What is the weather today?");
+  });
+
+  it("strips leading <session_recap> (underscore variant) block", () => {
+    const input = `<session_recap>
+<summary>items</summary>
+</session_recap>
+
+Hello`;
+    expect(stripInboundMetadata(input)).toBe("Hello");
+  });
+
+  it("does not strip <session-recap> when it appears mid-message", () => {
+    const input = `Hello\n<session-recap>\nstuff\n</session-recap>\nWorld`;
+    expect(stripInboundMetadata(input)).toBe(input);
+  });
+
+  it("preserves entire message when <session-recap> is unterminated", () => {
+    const input = `<session-recap>\n<summary>truncated`;
+    expect(stripInboundMetadata(input)).toBe(input);
+  });
+
+  it("strips inline single-line <session-recap> block", () => {
+    const input = `<session-recap><summary>recap</summary></session-recap>\n\nHello`;
+    expect(stripInboundMetadata(input)).toBe("Hello");
+  });
+
+  it("strips block where closing tag is inline with content", () => {
+    const input = `<session-recap>\n<summary>items</summary></session-recap>\n\nHello`;
+    expect(stripInboundMetadata(input)).toBe("Hello");
+  });
+
+  it("preserves text after inline closing tag on same line", () => {
+    const input = `<session-recap>stuff</session-recap>Hello`;
+    expect(stripInboundMetadata(input)).toBe("Hello");
+  });
+
+  it("strips <session-recap> that appears after sentinel metadata blocks", () => {
+    const input = `${CONV_BLOCK}\n\n<session-recap>\n<summary>recap</summary>\n</session-recap>\n\nUser message`;
+    expect(stripInboundMetadata(input)).toBe("User message");
+  });
+
+  it("preserves indentation in user text after stripping recap block", () => {
+    const input = `<session-recap>stuff</session-recap>\n    indented code`;
+    expect(stripInboundMetadata(input)).toBe("    indented code");
+  });
+});
+
+describe("stripLeadingInboundMetadata", () => {
+  it("strips leading <session-recap> block", () => {
+    const input = `<session-recap>\n<summary>items</summary>\n</session-recap>\n\nHello`;
+    expect(stripLeadingInboundMetadata(input)).toBe("Hello");
+  });
+
+  it("strips leading <session_recap> (underscore variant) block", () => {
+    const input = `<session_recap>\n<summary>items</summary>\n</session_recap>\n\nHello`;
+    expect(stripLeadingInboundMetadata(input)).toBe("Hello");
+  });
+
+  it("does not strip <session-recap> when it appears mid-message", () => {
+    const input = `Hello\n<session-recap>\nstuff\n</session-recap>\nWorld`;
+    expect(stripLeadingInboundMetadata(input)).toBe(input);
+  });
+
+  it("preserves entire message when <session-recap> is unterminated", () => {
+    const input = `<session-recap>\n<summary>truncated`;
+    expect(stripLeadingInboundMetadata(input)).toBe(input);
+  });
+
+  it("strips inline single-line <session-recap> block", () => {
+    const input = `<session-recap>stuff</session-recap>\n\nHello`;
+    expect(stripLeadingInboundMetadata(input)).toBe("Hello");
+  });
+
+  it("preserves text after inline closing tag on same line", () => {
+    const input = `<session-recap>stuff</session-recap>Hello`;
+    expect(stripLeadingInboundMetadata(input)).toBe("Hello");
+  });
+
+  it("strips <session-recap> that appears after sentinel metadata blocks", () => {
+    const input = `${CONV_BLOCK}\n\n<session-recap>\n<summary>recap</summary>\n</session-recap>\n\nUser message`;
+    expect(stripLeadingInboundMetadata(input)).toBe("User message");
   });
 });
 

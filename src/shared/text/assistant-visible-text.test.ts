@@ -46,4 +46,43 @@ describe("stripAssistantInternalScaffolding", () => {
     const input = ["Hello", "<relevant-memories>", "internal-only"].join("\n");
     expect(stripAssistantInternalScaffolding(input)).toBe("Hello\n");
   });
+
+  it("strips session-recap scaffolding blocks", () => {
+    const input = [
+      "<session-recap>",
+      "<summary>Found 10 recent items</summary>",
+      '<ledger-items count="2">',
+      '  <item path="ledger/2026-03-09.md">test</item>',
+      "</ledger-items>",
+      "</session-recap>",
+      "",
+      "User-visible answer",
+    ].join("\n");
+    expect(stripAssistantInternalScaffolding(input)).toBe("User-visible answer");
+  });
+
+  it("supports session_recap underscore variant", () => {
+    const input = ["<session_recap>", "Internal recap note", "</session_recap>", "Visible"].join(
+      "\n",
+    );
+    expect(stripAssistantInternalScaffolding(input)).toBe("Visible");
+  });
+
+  it("keeps session-recap tags inside fenced code", () => {
+    const input = [
+      "```xml",
+      "<session-recap>",
+      "sample",
+      "</session-recap>",
+      "```",
+      "",
+      "Visible text",
+    ].join("\n");
+    expect(stripAssistantInternalScaffolding(input)).toBe(input);
+  });
+
+  it("hides unfinished session-recap blocks", () => {
+    const input = ["Hello", "<session-recap>", "internal-only"].join("\n");
+    expect(stripAssistantInternalScaffolding(input)).toBe("Hello\n");
+  });
 });

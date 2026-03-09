@@ -33,6 +33,30 @@ const SENTINEL_FAST_RE = new RegExp(
     .join("|"),
 );
 
+// <session-recap> XML blocks injected as agent context scaffolding.
+const SESSION_RECAP_QUICK_RE = /<\s*session[-_]recap\b/i;
+const SESSION_RECAP_OPEN_RE = /^<\s*session[-_]recap\b[^<>]*>/i;
+const SESSION_RECAP_CLOSE_RE = /<\s*\/\s*session[-_]recap\s*>/i;
+
+function stripLeadingSessionRecapBlock(text: string): string {
+  if (!SESSION_RECAP_QUICK_RE.test(text)) {
+    return text;
+  }
+  const trimmedStart = text.trimStart();
+  if (!SESSION_RECAP_OPEN_RE.test(trimmedStart)) {
+    return text;
+  }
+
+  const closeMatch = SESSION_RECAP_CLOSE_RE.exec(trimmedStart);
+  if (!closeMatch) {
+    // Unterminated block — preserve entire message to avoid data loss.
+    return text;
+  }
+
+  const closeEnd = closeMatch.index + closeMatch[0].length;
+  return trimmedStart.slice(closeEnd).replace(/^\n+/, "");
+}
+
 function isInboundMetaSentinelLine(line: string): boolean {
   const trimmed = line.trim();
   return INBOUND_META_SENTINELS.some((sentinel) => sentinel === trimmed);
@@ -121,7 +145,14 @@ function stripTrailingUntrustedContextSuffix(lines: string[]): string[] {
  * (fast path — zero allocation).
  */
 export function stripInboundMetadata(text: string): string {
-  if (!text || !SENTINEL_FAST_RE.test(text)) {
+  if (!text) {
+    return text;
+  }
+
+  // Strip leading <session-recap> blocks first (before sentinel metadata).
+  text = stripLeadingSessionRecapBlock(text);
+
+  if (!SENTINEL_FAST_RE.test(text)) {
     return text;
   }
 
@@ -174,11 +205,21 @@ export function stripInboundMetadata(text: string): string {
     result.push(line);
   }
 
-  return result.join("\n").replace(/^\n+/, "").replace(/\n+$/, "");
+  // Strip recap blocks that appear after sentinel metadata was removed.
+  let stripped = result.join("\n").replace(/^\n+/, "").replace(/\n+$/, "");
+  stripped = stripLeadingSessionRecapBlock(stripped);
+  return stripped;
 }
 
 export function stripLeadingInboundMetadata(text: string): string {
-  if (!text || !SENTINEL_FAST_RE.test(text)) {
+  if (!text) {
+    return text;
+  }
+
+  // Strip leading <session-recap> blocks before sentinel metadata.
+  text = stripLeadingSessionRecapBlock(text);
+
+  if (!SENTINEL_FAST_RE.test(text)) {
     return text;
   }
 
@@ -221,8 +262,11 @@ export function stripLeadingInboundMetadata(text: string): string {
     }
   }
 
+  // Strip recap blocks that appear after sentinel metadata was removed.
   const strippedRemainder = stripTrailingUntrustedContextSuffix(lines.slice(index));
-  return strippedRemainder.join("\n");
+  let result = strippedRemainder.join("\n");
+  result = stripLeadingSessionRecapBlock(result);
+  return result;
 }
 
 export function extractInboundSenderLabel(text: string): string | null {
