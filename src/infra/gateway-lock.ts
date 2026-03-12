@@ -208,7 +208,7 @@ export async function acquireGatewayLock(
       if (typeof startTime === "number" && Number.isFinite(startTime)) {
         payload.startTime = startTime;
       }
-      if (typeof port === "number" && Number.isFinite(port)) {
+      if (typeof port === "number" && Number.isFinite(port) && port > 0 && port <= 65535) {
         payload.port = port;
       }
       await handle.writeFile(JSON.stringify(payload), "utf8");
